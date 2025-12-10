@@ -30,11 +30,19 @@ public class MazeFrame  extends JFrame{
 	private JSlider speedSlider;
 	private JButton importButton;
 	private ControlListener controlListener;
+	// GA parameter controls
+	private javax.swing.JSpinner gaPopSpinner;
+	private javax.swing.JSpinner gaGenSpinner;
+	private javax.swing.JSpinner gaMutationSpinner;
+	private javax.swing.JSpinner gaGoalBiasSpinner;
+	private javax.swing.JSpinner gaElitismSpinner;
 	// Metrics labels
 	private JLabel costLabel;
 	private JLabel stepsLabel;
 	private JLabel visitedLabel;
 	private JLabel timeLabel;
+	// Maze file label
+	private JLabel mazeFileLabel;
 	// removed Route Weight label per request
 	
 	public MazeFrame(String title, int canvasWidth, int canvasHeight) {
@@ -53,7 +61,7 @@ public class MazeFrame  extends JFrame{
 		this.canvasRef = canvas;
 		
 		this.pack();
-		this.setResizable(false);
+		this.setResizable(true);
         this.setDefaultCloseOperation(WindowConstants.EXIT_ON_CLOSE);
         this.setVisible(true);
 	}
@@ -76,7 +84,7 @@ public class MazeFrame  extends JFrame{
 		JPanel panel = new JPanel();
 		panel.add(new JLabel("Algorithm:"));
 		this.algorithmBox = new JComboBox<>(new String[]{
-			"Dijkstra", "A*", "BFS", "Genetic"
+			"Genetic", "Dijkstra", "A*", "BFS" 
 		});
 		panel.add(algorithmBox);
 
@@ -93,6 +101,8 @@ public class MazeFrame  extends JFrame{
 			}
 		});
 		panel.add(importButton);
+		mazeFileLabel = new JLabel("File: (none)");
+		panel.add(mazeFileLabel);
 		runButton = new JButton("Run");
 		runButton.addActionListener(new ActionListener() {
 			@Override
@@ -126,6 +136,27 @@ public class MazeFrame  extends JFrame{
 		// Metrics display
 		costLabel = new JLabel("Cost: -");
 		stepsLabel = new JLabel("Steps: -");
+
+		// Genetic parameters (visible always for simplicity)
+		panel.add(new JLabel("GA Pop:"));
+		gaPopSpinner = new javax.swing.JSpinner(new javax.swing.SpinnerNumberModel(140, 10, 10000, 10));
+		panel.add(gaPopSpinner);
+
+		panel.add(new JLabel("GA Gen:"));
+		gaGenSpinner = new javax.swing.JSpinner(new javax.swing.SpinnerNumberModel(300, 10, 100000, 10));
+		panel.add(gaGenSpinner);
+
+		panel.add(new JLabel("GA Mut%:"));
+		gaMutationSpinner = new javax.swing.JSpinner(new javax.swing.SpinnerNumberModel(5.0, 0.0, 100.0, 0.5));
+		panel.add(gaMutationSpinner);
+
+		panel.add(new JLabel("GA GoalBias%:"));
+		gaGoalBiasSpinner = new javax.swing.JSpinner(new javax.swing.SpinnerNumberModel(80.0, 0.0, 100.0, 1.0));
+		panel.add(gaGoalBiasSpinner);
+
+		panel.add(new JLabel("GA Elitism Count:"));
+		gaElitismSpinner = new javax.swing.JSpinner(new javax.swing.SpinnerNumberModel(14, 1, 10000, 1));
+		panel.add(gaElitismSpinner);
 		visitedLabel = new JLabel("Visited: -");
 		timeLabel = new JLabel("Time: -ms");
 		panel.add(costLabel);
@@ -134,10 +165,62 @@ public class MazeFrame  extends JFrame{
 		panel.add(timeLabel);
 		return panel;
 	}
+
+	public void setMazeFileName(String filePath) {
+		String name = filePath;
+		try {
+			if (filePath != null) {
+				java.io.File f = new java.io.File(filePath);
+				name = f.getName();
+			}
+		} catch (Throwable ignored) {}
+		if (mazeFileLabel != null) {
+			mazeFileLabel.setText("File: " + (name != null ? name : "(none)"));
+		}
+	}
+
+	// Accessors for GA parameters
+	public int getGaPopulation() {
+		Object v = gaPopSpinner != null ? gaPopSpinner.getValue() : 140;
+		return (v instanceof Number) ? ((Number)v).intValue() : 140;
+	}
+
+	public int getGaGenerations() {
+		Object v = gaGenSpinner != null ? gaGenSpinner.getValue() : 300;
+		return (v instanceof Number) ? ((Number)v).intValue() : 300;
+	}
+
+	public double getGaMutationRate() {
+		Object v = gaMutationSpinner != null ? gaMutationSpinner.getValue() : 5.0;
+		double pct = (v instanceof Number) ? ((Number)v).doubleValue() : 5.0;
+		return Math.max(0.0, Math.min(1.0, pct / 100.0));
+	}
+
+	public double getGaGoalBias() {
+		Object v = gaGoalBiasSpinner != null ? gaGoalBiasSpinner.getValue() : 80.0;
+		double pct = (v instanceof Number) ? ((Number)v).doubleValue() : 80.0;
+		return Math.max(0.0, Math.min(1.0, pct / 100.0));
+	}
+
+	public int getGaElitismCount() {
+		Object v = gaElitismSpinner != null ? gaElitismSpinner.getValue() : 14;
+		return (v instanceof Number) ? ((Number)v).intValue() : 14;
+	}
+
+	// Reset GA parameter controls to their default values
+	public void resetGaParametersToDefaults() {
+		if (gaPopSpinner != null) gaPopSpinner.setValue(140);
+		if (gaGenSpinner != null) gaGenSpinner.setValue(300);
+		if (gaMutationSpinner != null) gaMutationSpinner.setValue(5.0);
+		if (gaGoalBiasSpinner != null) gaGoalBiasSpinner.setValue(80.0);
+		if (gaElitismSpinner != null) gaElitismSpinner.setValue(14);
+	}
 	
 	public void paint(MazeUtil util) {
-		int w = canvasWidth / data.M();
-		int h = canvasHeight / data.N();
+		int cw = (canvasRef != null ? canvasRef.getWidth() : canvasWidth);
+		int ch = (canvasRef != null ? canvasRef.getHeight() : canvasHeight);
+		int w = cw / Math.max(1, data.M());
+		int h = ch / Math.max(1, data.N());
 		for(int i = 0; i < data.N(); i++) {
 			for(int j = 0; j < data.M(); j++) {
 				if(data.getMazeChar(i, j) == MazeData.WALL) {
@@ -183,8 +266,6 @@ public class MazeFrame  extends JFrame{
 		public Dimension getPreferredSize() {
 			return new Dimension(canvasWidth, canvasHeight);
 		}
-		
-		
 	}
 
 	// reference to canvas for resizing
@@ -204,7 +285,7 @@ public class MazeFrame  extends JFrame{
 		if (algoName != null) {
 			setTitle("Maze Solver - " + algoName);
 		}
-		if (costLabel != null) costLabel.setText("Cost: " + (cost != null ? cost : "-"));
+		if (costLabel != null) costLabel.setText("Cost: " + (cost != null ? cost-1 : "-"));
 		if (stepsLabel != null) stepsLabel.setText("Steps: " + (steps != null ? steps : "-"));
 		if (visitedLabel != null) visitedLabel.setText("Visited: " + (visited != null ? visited : "-"));
 		if (timeLabel != null) timeLabel.setText("Time: " + (timeMs != null ? timeMs : "-") + "ms");
@@ -212,7 +293,8 @@ public class MazeFrame  extends JFrame{
 
 	public int getBlockSize() {
 		int cols = (data != null ? data.M() : 1);
-		return Math.max(5, Math.min(80, canvasWidth / Math.max(1, cols)));
+		int cw = (canvasRef != null ? canvasRef.getWidth() : canvasWidth);
+		return Math.max(1, cw / Math.max(1, cols));
 	}
 
 	public void resizeToBlock(int blockSize) {
